@@ -29,35 +29,41 @@ runs:
   steps:
     - name: Install Packages
       shell: bash
+      env:
+        PACKAGES: ${{ join(fromJSON(inputs.packages), ' ') }}
+        TARGET_ORG: ${{ inputs.target-org }}
+        API_VERSION: ${{ inputs.api-version }}
+        WAIT: ${{ inputs.wait }}
+        PUBLISH_WAIT: ${{ inputs.publish-wait }}
       run: |
+        set -euo pipefail
+
         params=()
 
-        if [[ -n "${{ inputs.target-org }}" ]]; then
-          params+=(--target-org "${{ inputs.target-org }}")
+        if [[ -n "$TARGET_ORG" ]]; then
+          params+=(--target-org "$TARGET_ORG")
         fi
 
-        if [[ -n "${{ inputs.api-version }}" ]]; then
-          params+=(--api-version "${{ inputs.api-version }}")
+        if [[ -n "$API_VERSION" ]]; then
+          params+=(--api-version "$API_VERSION")
         fi
 
-        echo "Installing SF packages: ${{ join( fromJSON(inputs.packages), ', ') }}"
+        echo "Installing SF packages: $PACKAGES"
 
-        for i in ${{ join( fromJSON(inputs.packages), ' ') }}
-        do
+        for i in $PACKAGES; do
           pkg=""
-          k=""
           args=("${params[@]}")
 
-          if [[ $i == *"_"* ]]; then
+          # A trailing "_<key>" marks a key-protected package, e.g. "04t..._myKey".
+          if [[ "$i" == *"_"* ]]; then
             echo "Installation key for key-protected package found..."
-            pkg=$(echo ${i} | cut -d '_' -f 1)
-            k=$(echo ${i} | cut -d '_' -f 2)
-            echo "Key: $k"
-            args+=(--installation-key $k)
+            pkg="${i%%_*}"
+            k="${i#*_}"
+            args+=(--installation-key "$k")
           else
-            pkg=$i
+            pkg="$i"
           fi
 
           echo "Installing package $pkg..."
-          sf package install --wait ${{ inputs.wait }} --publish-wait ${{ inputs.publish-wait }} --package $pkg --no-prompt "${args[@]}"
+          sf package install --wait "$WAIT" --publish-wait "$PUBLISH_WAIT" --package "$pkg" --no-prompt "${args[@]}"
         done

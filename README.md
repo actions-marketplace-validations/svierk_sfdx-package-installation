@@ -47,6 +47,16 @@ The following actions were also used in the example workflow to create the prere
 
 Of course, the package installation action can be used flexibly and the respective approach can vary.
 
+## Inputs
+
+| Name           | Required | Default | Description                                                                                                  |
+| -------------- | -------- | ------- | ---------------------------------------------------------------------------------------------------------- |
+| `packages`     | yes      |         | Packages to install as a JSON array of aliases or IDs, e.g. `"['04t...','04t...']"`. Append `_<key>` to a package ID for key-protected installs. |
+| `target-org`   | no       |         | Username or alias of the target org. Not required if the default org is set.                               |
+| `api-version`  | no       |         | Override the api version used for api requests, e.g. `59.0`.                                               |
+| `wait`         | no       | `0`     | Number of minutes to wait for installation status.                                                         |
+| `publish-wait` | no       | `0`     | Maximum minutes to wait for the Subscriber Package Version ID to become available before canceling.        |
+
 ## Releases
 
 Latest release notes can be found on the [release page](https://github.com/svierk/sfdx-package-installation/releases).
