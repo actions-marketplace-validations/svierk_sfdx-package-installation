@@ -56,6 +56,7 @@ Of course, the package installation action can be used flexibly and the respecti
 | `api-version`  | no       |         | Override the api version used for api requests, e.g. `59.0`.                                               |
 | `wait`         | no       | `0`     | Number of minutes to wait for installation status.                                                         |
 | `publish-wait` | no       | `0`     | Maximum minutes to wait for the Subscriber Package Version ID to become available before canceling.        |
+| `step-summary` | no       | `true`  | Write a result section to the GitHub Actions [job summary](https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#adding-a-job-summary). Set to `false` to avoid collisions with a custom workflow summary. |
 
 ## Releases
 
