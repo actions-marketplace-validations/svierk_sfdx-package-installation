@@ -6,14 +6,14 @@ This repository implements a simple GitHub composite action for installing packa
 
 After installing the SF CLI and authorizing the relevant org in your GitHub workflow, packages can be installed using this action as follows:
 
-```
+```yaml
 jobs:
   validation:
     name: Validation
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Select Node Version
         uses: svierk/get-node-version@main
