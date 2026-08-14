@@ -11,33 +11,48 @@ jobs:
   validation:
     name: Validation
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # least privilege - the installation itself needs no write access
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false # the GITHUB_TOKEN is not needed after the checkout - don't leave it in .git/config
 
       - name: Select Node Version
-        uses: svierk/get-node-version@main
+        uses: svierk/get-node-version@v1.5.1
 
       - name: Install Dependencies
         run: npm ci
-      
+
       - name: Install SF CLI
-        uses: svierk/sfdx-cli-setup@main
-        
+        uses: svierk/sfdx-cli-setup@v1.1.3
+
       - name: Salesforce Org Login
-        uses: svierk/sfdx-login@main
+        uses: svierk/sfdx-login@v1.4.2
         with:
           sfdx-url: ${{ secrets.SFDX_AUTH_URL }}
-    
+
       - name: Package Installation
-        uses: svierk/sfdx-package-installation@main
+        uses: svierk/sfdx-package-installation@v1.2.1
         with:
           packages: "['04t6S000001UjutQAC','04t3y000000X0OaAAK']"
           wait: 30
           publish-wait: 20
 ```
 
-If the packages you want to install are key-protected, you can simply append the required installation key for each package with an underscore, e.g. '04t6S000001UjutQAC_INSTALLATIONKEY'.
+Every action above is pinned to an exact release tag instead of a moving reference like `@main`, so a workflow run is reproducible and an update is always an explicit, reviewable change.
+
+If the packages you want to install are key-protected, you can simply append the required installation key for each package with an underscore, e.g. `04t6S000001UjutQAC_INSTALLATIONKEY`. Since an installation key is a credential, keep it in a [GitHub Actions secret](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions) rather than in the workflow file:
+
+```yaml
+- name: Package Installation
+  uses: svierk/sfdx-package-installation@v1.2.1
+  with:
+    packages: "['04t6S000001UjutQAC_${{ secrets.SFDX_PACKAGE_KEY }}']"
+```
+
+The action masks every installation key in the job log and never prints it, so keys stay hidden even if they are passed as a literal value.
 
 The following actions were also used in the example workflow to create the prerequisites for the package installation:
 

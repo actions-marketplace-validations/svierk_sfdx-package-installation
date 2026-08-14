@@ -53,25 +53,40 @@ runs:
           params+=(--api-version "$API_VERSION")
         fi
 
-        echo "Installing SF packages: $PACKAGES"
-
-        installed=()
+        # Split the list up front so that no log output ever contains an
+        # installation key. A trailing "_<key>" marks a key-protected package,
+        # e.g. "04t..._myKey".
+        pkgs=()
+        keys=()
         for i in $PACKAGES; do
-          pkg=""
-          args=("${params[@]}")
-
-          # A trailing "_<key>" marks a key-protected package, e.g. "04t..._myKey".
           if [[ "$i" == *"_"* ]]; then
-            echo "Installation key for key-protected package found..."
-            pkg="${i%%_*}"
             k="${i#*_}"
-            args+=(--installation-key "$k")
+            echo "::add-mask::$k" # mask the key for the rest of the job, also if it was not passed as a secret
+            pkgs+=("${i%%_*}")
+            keys+=("$k")
           else
-            pkg="$i"
+            pkgs+=("$i")
+            keys+=("")
+          fi
+        done
+
+        echo "Installing SF packages: ${pkgs[*]-}"
+
+        # Arrays are expanded with the "${arr[@]+...}" guard: with "set -u" the
+        # plain expansion of an empty array aborts on Bash 3.2, which is what
+        # "shell: bash" still resolves to on the macOS runners.
+        installed=()
+        for idx in "${!pkgs[@]}"; do
+          pkg="${pkgs[$idx]}"
+          args=(${params[@]+"${params[@]}"})
+
+          if [[ -n "${keys[$idx]}" ]]; then
+            echo "Installation key for key-protected package found..."
+            args+=(--installation-key "${keys[$idx]}")
           fi
 
           echo "Installing package $pkg..."
-          sf package install --wait "$WAIT" --publish-wait "$PUBLISH_WAIT" --package "$pkg" --no-prompt "${args[@]}"
+          sf package install --wait "$WAIT" --publish-wait "$PUBLISH_WAIT" --package "$pkg" --no-prompt ${args[@]+"${args[@]}"}
           installed+=("$pkg")
         done
 
@@ -82,7 +97,7 @@ runs:
             echo ""
             echo "### 📦 Packages installed"
             echo ""
-            for p in "${installed[@]}"; do
+            for p in ${installed[@]+"${installed[@]}"}; do
               echo "- \`$p\`"
             done
             echo ""
