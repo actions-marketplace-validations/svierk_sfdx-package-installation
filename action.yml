@@ -23,41 +23,83 @@ inputs:
     description: Maximum number of minutes to wait for the Subscriber Package Version ID to become available in the target org before canceling the install request.
     required: false
     default: '0'
+  step-summary:
+    description: Write a result section to the GitHub Actions job summary. Set to false to avoid collisions with a custom workflow summary.
+    required: false
+    default: 'true'
 
 runs:
   using: composite
   steps:
     - name: Install Packages
       shell: bash
+      env:
+        PACKAGES: ${{ join(fromJSON(inputs.packages), ' ') }}
+        TARGET_ORG: ${{ inputs.target-org }}
+        API_VERSION: ${{ inputs.api-version }}
+        WAIT: ${{ inputs.wait }}
+        PUBLISH_WAIT: ${{ inputs.publish-wait }}
+        STEP_SUMMARY: ${{ inputs.step-summary }}
       run: |
+        set -euo pipefail
+
         params=()
 
-        if [[ -n "${{ inputs.target-org }}" ]]; then
-          params+=(--target-org "${{ inputs.target-org }}")
+        if [[ -n "$TARGET_ORG" ]]; then
+          params+=(--target-org "$TARGET_ORG")
         fi
 
-        if [[ -n "${{ inputs.api-version }}" ]]; then
-          params+=(--api-version "${{ inputs.api-version }}")
+        if [[ -n "$API_VERSION" ]]; then
+          params+=(--api-version "$API_VERSION")
         fi
 
-        echo "Installing SF packages: ${{ join( fromJSON(inputs.packages), ', ') }}"
-
-        for i in ${{ join( fromJSON(inputs.packages), ' ') }}
-        do
-          pkg=""
-          k=""
-          args=("${params[@]}")
-
-          if [[ $i == *"_"* ]]; then
-            echo "Installation key for key-protected package found..."
-            pkg=$(echo ${i} | cut -d '_' -f 1)
-            k=$(echo ${i} | cut -d '_' -f 2)
-            echo "Key: $k"
-            args+=(--installation-key $k)
+        # Split the list up front so that no log output ever contains an
+        # installation key. A trailing "_<key>" marks a key-protected package,
+        # e.g. "04t..._myKey".
+        pkgs=()
+        keys=()
+        for i in $PACKAGES; do
+          if [[ "$i" == *"_"* ]]; then
+            k="${i#*_}"
+            echo "::add-mask::$k" # mask the key for the rest of the job, also if it was not passed as a secret
+            pkgs+=("${i%%_*}")
+            keys+=("$k")
           else
-            pkg=$i
+            pkgs+=("$i")
+            keys+=("")
+          fi
+        done
+
+        echo "Installing SF packages: ${pkgs[*]-}"
+
+        # Arrays are expanded with the "${arr[@]+...}" guard: with "set -u" the
+        # plain expansion of an empty array aborts on Bash 3.2, which is what
+        # "shell: bash" still resolves to on the macOS runners.
+        installed=()
+        for idx in "${!pkgs[@]}"; do
+          pkg="${pkgs[$idx]}"
+          args=(${params[@]+"${params[@]}"})
+
+          if [[ -n "${keys[$idx]}" ]]; then
+            echo "Installation key for key-protected package found..."
+            args+=(--installation-key "${keys[$idx]}")
           fi
 
           echo "Installing package $pkg..."
-          sf package install --wait ${{ inputs.wait }} --publish-wait ${{ inputs.publish-wait }} --package $pkg --no-prompt "${args[@]}"
+          sf package install --wait "$WAIT" --publish-wait "$PUBLISH_WAIT" --package "$pkg" --no-prompt ${args[@]+"${args[@]}"}
+          installed+=("$pkg")
         done
+
+        echo "✅ Successfully installed ${#installed[@]} package(s)"
+
+        if [[ "$STEP_SUMMARY" == "true" ]]; then
+          {
+            echo ""
+            echo "### 📦 Packages installed"
+            echo ""
+            for p in ${installed[@]+"${installed[@]}"}; do
+              echo "- \`$p\`"
+            done
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+        fi
